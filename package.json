@@ -1,0 +1,54 @@
+{
+  "name": "@solrouter/sdk",
+  "version": "1.0.0",
+  "description": "SolRouter Privacy SDK - End-to-end encrypted AI API calls",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "examples",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "solrouter",
+    "privacy",
+    "ai",
+    "encryption",
+    "arcium",
+    "llm"
+  ],
+  "author": "SolRouter",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/solrouter/sdk"
+  },
+  "dependencies": {
+    "@arcium-hq/client": "^0.6.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^2.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

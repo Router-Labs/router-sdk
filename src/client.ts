@@ -1,0 +1,221 @@
+/**
+ * SolRouter SDK - Main Client
+ *
+ * Privacy-first AI API client with end-to-end encryption.
+ */
+
+import { encrypt, decrypt, packageForTEE, clearSession } from './encryption.js';
+import type {
+  SolRouterConfig,
+  ChatOptions,
+  ChatResponse,
+  BalanceResponse,
+} from './types.js';
+
+const DEFAULT_BASE_URL = 'https://solrouter-obb4.onrender.com';
+const DEFAULT_MODEL = 'gpt-oss-20b';
+
+// Model mapping for API
+const MODEL_MAP: Record<string, string> = {
+  'gpt-oss-20b': 'nosana:gpt-oss:20b',
+  'gemini-flash': 'gemini:gemini-2.0-flash-exp',
+  'claude-sonnet': 'claude:claude-3-5-sonnet-20241022',
+  'claude-sonnet-4': 'claude:claude-sonnet-4-20250514',
+  'gpt-4o-mini': 'openai:gpt-4o-mini',
+};
+
+export class SolRouter {
+  private apiKey: string;
+  private baseUrl: string;
+  private encrypted: boolean;
+
+  constructor(config: SolRouterConfig) {
+    if (!config.apiKey) {
+      throw new Error('SolRouter: apiKey is required');
+    }
+    this.apiKey = config.apiKey;
+    this.baseUrl = config.baseUrl || DEFAULT_BASE_URL;
+    this.encrypted = config.encrypted !== false; // Default to true
+  }
+
+  /**
+   * Send a chat message with optional encryption
+   *
+   * @param prompt - The user's message
+   * @param options - Chat options (model, encryption, etc.)
+   * @returns The AI response
+   */
+  async chat(prompt: string, options: ChatOptions = {}): Promise<ChatResponse> {
+    const useEncryption = options.encrypted ?? this.encrypted;
+    const model = MODEL_MAP[options.model || DEFAULT_MODEL] || options.model || MODEL_MAP[DEFAULT_MODEL];
+
+    if (useEncryption) {
+      return this.encryptedChat(prompt, model, options);
+    } else {
+      return this.plainChat(prompt, model, options);
+    }
+  }
+
+  /**
+   * Encrypted chat - prompt is encrypted client-side
+   */
+  private async encryptedChat(
+    prompt: string,
+    model: string,
+    options: ChatOptions
+  ): Promise<ChatResponse> {
+    // Encrypt the prompt
+    const encryptedData = await encrypt(prompt, this.baseUrl);
+    const encryptedPackage = packageForTEE(encryptedData);
+
+    // Send to TEE endpoint
+    const response = await fetch(`${this.baseUrl}/tee/process`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        encryptedPrompt: encryptedPackage,
+        model: model,
+        chatId: options.chatId,
+        systemPrompt: options.systemPrompt,
+        useRAG: options.useRAG,
+        ragCollection: options.ragCollection,
+        useLiveSearch: options.useLiveSearch,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string; message?: string };
+      throw new Error(`SolRouter API error: ${error.error || error.message || response.statusText}`);
+    }
+
+    const data = await response.json() as {
+      encryptedResponse: string;
+      attestationHash?: string;
+      metadata?: {
+        model: string;
+        promptTokens?: number;
+        completionTokens?: number;
+      };
+      cost?: number;
+      privacyAttestationId?: string;
+    };
+
+    // Decrypt the response
+    const decryptedMessage = await decrypt(
+      JSON.parse(data.encryptedResponse),
+      encryptedData.ephemeralPrivateKey
+    );
+
+    return {
+      message: decryptedMessage,
+      model: data.metadata?.model || model,
+      usage: data.metadata ? {
+        promptTokens: data.metadata.promptTokens || 0,
+        completionTokens: data.metadata.completionTokens || 0,
+        totalTokens: (data.metadata.promptTokens || 0) + (data.metadata.completionTokens || 0),
+      } : undefined,
+      cost: data.cost,
+      encrypted: true,
+      privacyAttestationId: data.privacyAttestationId || data.attestationHash,
+    };
+  }
+
+  /**
+   * Plain chat - no encryption (for non-sensitive requests)
+   */
+  private async plainChat(
+    prompt: string,
+    model: string,
+    options: ChatOptions
+  ): Promise<ChatResponse> {
+    // Determine the correct endpoint based on model
+    const endpoint = this.getEndpointForModel(model);
+
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        prompt: prompt,
+        model: model.split(':').pop(), // Extract model name
+        chatId: options.chatId,
+        systemPrompt: options.systemPrompt,
+        useRAG: options.useRAG,
+        ragCollection: options.ragCollection,
+        useLiveSearch: options.useLiveSearch,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string; message?: string };
+      throw new Error(`SolRouter API error: ${error.error || error.message || response.statusText}`);
+    }
+
+    const data = await response.json() as {
+      reply: string;
+      model?: string;
+      tokenUsage?: {
+        promptTokens: number;
+        completionTokens: number;
+      };
+      cost?: number;
+    };
+
+    return {
+      message: data.reply,
+      model: data.model || model,
+      usage: data.tokenUsage ? {
+        promptTokens: data.tokenUsage.promptTokens,
+        completionTokens: data.tokenUsage.completionTokens,
+        totalTokens: data.tokenUsage.promptTokens + data.tokenUsage.completionTokens,
+      } : undefined,
+      cost: data.cost,
+      encrypted: false,
+    };
+  }
+
+  /**
+   * Get endpoint for a given model
+   */
+  private getEndpointForModel(model: string): string {
+    if (model.startsWith('nosana:')) return '/nosana';
+    if (model.startsWith('gemini:')) return '/gemini';
+    if (model.startsWith('claude:')) return '/claude';
+    if (model.startsWith('openai:')) return '/openai';
+    return '/router'; // Default intelligent routing
+  }
+
+  /**
+   * Get account balance
+   */
+  async getBalance(): Promise<BalanceResponse> {
+    const response = await fetch(`${this.baseUrl}/api/v1/balance`, {
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch balance');
+    }
+
+    const data = await response.json() as { balance_usdc: number; balance_formatted: string };
+
+    return {
+      balance: data.balance_usdc,
+      balanceFormatted: data.balance_formatted,
+    };
+  }
+
+  /**
+   * Clear encryption session (call on logout/cleanup)
+   */
+  clearSession(): void {
+    clearSession();
+  }
+}
