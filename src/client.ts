@@ -46,6 +46,11 @@ export class SolRouter {
    * @returns The AI response
    */
   async chat(prompt: string, options: ChatOptions = {}): Promise<ChatResponse> {
+    // BRAID reasoning path — routes through the agent endpoint
+    if (options.reasoning === 'braid') {
+      return this.braidChat(prompt, options);
+    }
+
     const useEncryption = options.encrypted ?? this.encrypted;
     const model = MODEL_MAP[options.model || DEFAULT_MODEL] || options.model || MODEL_MAP[DEFAULT_MODEL];
 
@@ -54,6 +59,49 @@ export class SolRouter {
     } else {
       return this.plainChat(prompt, model, options);
     }
+  }
+
+  /**
+   * BRAID-guided chat — routes to the agent endpoint with reasoning: 'braid'
+   */
+  private async braidChat(prompt: string, options: ChatOptions): Promise<ChatResponse> {
+    const model = MODEL_MAP[options.model || DEFAULT_MODEL] || options.model || MODEL_MAP[DEFAULT_MODEL];
+
+    const response = await fetch(`${this.baseUrl}/agent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        prompt,
+        model,
+        chatId: options.chatId,
+        reasoning: 'braid',
+        braidOptions: options.braidOptions,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string; message?: string };
+      throw new Error(`SolRouter API error: ${error.error || error.message || response.statusText}`);
+    }
+
+    const data = await response.json() as {
+      success: boolean;
+      reply: string;
+      model?: string;
+      usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
+      braidTrace?: ChatResponse['braidTrace'];
+    };
+
+    return {
+      message: data.reply,
+      model: data.model || model,
+      usage: data.usage,
+      encrypted: false,
+      braidTrace: data.braidTrace,
+    };
   }
 
   /**

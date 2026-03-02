@@ -26,6 +26,15 @@ export interface ChatOptions {
   ragCollection?: string;
   /** Enable live web search */
   useLiveSearch?: boolean;
+  /** Reasoning mode: 'default' for standard, 'braid' for BRAID-guided reasoning */
+  reasoning?: 'default' | 'braid';
+  /** BRAID-specific options (only used when reasoning is 'braid') */
+  braidOptions?: {
+    /** Include GRD execution trace in the response */
+    includeTrace?: boolean;
+    /** Force a specific GRD by ID */
+    forceGrdId?: string;
+  };
 }
 
 export interface ChatResponse {
@@ -45,6 +54,23 @@ export interface ChatResponse {
   encrypted: boolean;
   /** Privacy attestation ID (if encrypted) */
   privacyAttestationId?: string;
+  /** BRAID execution trace (when reasoning: 'braid' and braidOptions.includeTrace: true) */
+  braidTrace?: {
+    grdId: string;
+    grdMermaid: string;
+    intent: string;
+    nodes: Array<{
+      nodeId: string;
+      label: string;
+      type: string;
+      status: string;
+      durationMs?: number;
+      tokensUsed?: number;
+    }>;
+    totalDurationMs: number;
+    totalTokens: number;
+    ppd?: number;
+  };
 }
 
 export interface EncryptedData {
