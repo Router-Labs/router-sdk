@@ -33,6 +33,11 @@ export class SolRouter {
     if (!config.apiKey) {
       throw new Error('SolRouter: apiKey is required');
     }
+    if (!config.apiKey.startsWith('sk_solrouter_') || config.apiKey.length < 45) {
+      throw new Error(
+        'SolRouter: invalid apiKey format. Keys must start with "sk_solrouter_" and be at least 45 characters. Generate one at https://solrouter.io/settings.'
+      );
+    }
     this.apiKey = config.apiKey;
     this.baseUrl = config.baseUrl || DEFAULT_BASE_URL;
     this.encrypted = config.encrypted !== false; // Default to true
