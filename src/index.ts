@@ -25,6 +25,9 @@ export type {
   ChatResponse,
   EncryptedData,
   BalanceResponse,
+  SkillSummary,
+  Skill,
+  SkillMatch,
 } from './types.js';
 
 // Re-export encryption utilities for advanced use cases

@@ -10,6 +10,9 @@ import type {
   ChatOptions,
   ChatResponse,
   BalanceResponse,
+  SkillSummary,
+  Skill,
+  SkillMatch,
 } from './types.js';
 
 const DEFAULT_BASE_URL = 'https://solrouter-obb4.onrender.com';
@@ -264,6 +267,42 @@ export class SolRouter {
       balanceFormatted: data.balance_formatted,
     };
   }
+
+  /**
+   * Agent Skills (agentskills.io) exposed by the SolRouter backend.
+   *
+   * The backend auto-injects matched SKILL.md content into /router calls,
+   * so you don't need to call these to "use" a skill — they're for
+   * introspection, listing in UIs, and pre-flight checks.
+   *
+   * @example
+   *   const skills = await client.skills.list();
+   *   const match = await client.skills.match('How do I use Arcium MPC?');
+   */
+  readonly skills = {
+    list: async (): Promise<SkillSummary[]> => {
+      const res = await fetch(`${this.baseUrl}/skills`);
+      if (!res.ok) throw new Error(`skills.list failed: ${res.status}`);
+      const data = (await res.json()) as { skills?: SkillSummary[] };
+      return Array.isArray(data?.skills) ? data.skills : [];
+    },
+    get: async (id: string): Promise<Skill> => {
+      const res = await fetch(`${this.baseUrl}/skills/${encodeURIComponent(id)}`);
+      if (res.status === 404) throw new Error(`skill not found: ${id}`);
+      if (!res.ok) throw new Error(`skills.get failed: ${res.status}`);
+      return (await res.json()) as Skill;
+    },
+    match: async (prompt: string, limit = 3): Promise<SkillMatch[]> => {
+      const res = await fetch(`${this.baseUrl}/skills/match`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, limit }),
+      });
+      if (!res.ok) throw new Error(`skills.match failed: ${res.status}`);
+      const data = (await res.json()) as { matches?: SkillMatch[] };
+      return Array.isArray(data?.matches) ? data.matches : [];
+    },
+  };
 
   /**
    * Clear encryption session (call on logout/cleanup)

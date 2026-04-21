@@ -84,3 +84,34 @@ export interface BalanceResponse {
   balance: number;
   balanceFormatted: string;
 }
+
+/** Summary returned by GET /skills — one entry per installed SKILL.md */
+export interface SkillSummary {
+  id: string;
+  name: string;
+  description: string;
+  version: string | null;
+  compatibility?: string | null;
+  metadata?: Record<string, unknown> | null;
+  bodyLength: number;
+}
+
+/** Full SKILL.md detail returned by GET /skills/:id */
+export interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  version: string | null;
+  license: string | null;
+  compatibility: string | null;
+  metadata: Record<string, unknown> | null;
+  /** Full markdown body of SKILL.md (after YAML frontmatter) */
+  body: string;
+}
+
+/** A matched skill from POST /skills/match — description trimmed for UI */
+export interface SkillMatch {
+  id: string;
+  name: string;
+  description: string;
+}
