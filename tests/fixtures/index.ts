@@ -63,7 +63,7 @@ export const ENDPOINT_MAPPINGS = {
 } as const;
 
 // Test constants
-export const TEST_API_KEY = 'sk_solrouter_test_key_123';
+export const TEST_API_KEY = 'sk_solrouter_test_key_1234567890abcdef';
 export const TEST_BASE_URL = 'https://test.solrouter.com';
 export const DEFAULT_BASE_URL = 'https://solrouter-obb4.onrender.com';
 

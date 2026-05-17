@@ -49,6 +49,22 @@ describe('SolRouter Client', () => {
       expect(client).toBeInstanceOf(SolRouter);
     });
 
+    it('accepts real-world 44-char keys (server strips base64 chars, so random part can be <32)', () => {
+      // Server-generated keys can be 30–32 random chars after sk_solrouter_ due to base64 stripping.
+      const realShape = 'sk_solrouter_2IANWYHHgDF50CEOT2mgFWsWVMZOoLD'; // 44 chars, 31 random
+      expect(() => new SolRouter({ apiKey: realShape })).not.toThrow();
+    });
+
+    it('rejects keys missing the sk_solrouter_ prefix', () => {
+      expect(() => new SolRouter({ apiKey: 'sk_otherprefix_abcdefghijklmnop12345' })).toThrow(
+        /invalid apiKey format/
+      );
+    });
+
+    it('rejects keys that are too short', () => {
+      expect(() => new SolRouter({ apiKey: 'sk_solrouter_short' })).toThrow(/invalid apiKey format/);
+    });
+
     it('uses default baseUrl when not provided', async () => {
       const client = new SolRouter({ apiKey: TEST_API_KEY, encrypted: false });
 
