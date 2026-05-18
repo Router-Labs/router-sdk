@@ -34,20 +34,22 @@ export async function fetchTeePublicKey(baseUrl: string): Promise<Uint8Array> {
     return cachedTeePublicKey;
   }
 
-  try {
-    const response = await fetch(`${baseUrl}/tee/public-key`);
-    if (response.ok) {
-      const data = await response.json() as { publicKey: string };
-      cachedTeePublicKey = Buffer.from(data.publicKey, 'base64');
-      return cachedTeePublicKey;
-    }
-  } catch {
-    // Fall through to fallback
+  // No fallback: if the TEE is unreachable we MUST refuse to encrypt rather
+  // than fall back to a guessable key. The previous Uint8Array(32).fill(42)
+  // fallback had a publicly-derivable private key — encrypting to it would
+  // have made the ciphertext readable by anyone.
+  const response = await fetch(`${baseUrl}/tee/public-key`);
+  if (!response.ok) {
+    throw new Error(
+      `Cannot fetch TEE public key from ${baseUrl}/tee/public-key (status ${response.status}). ` +
+      `Refusing to encrypt — would risk sending plaintext or encrypting to a guessable key.`
+    );
   }
-
-  // Fallback to dev TEE key
-  const TEE_PRIVATE_KEY_TEMP = new Uint8Array(32).fill(42);
-  cachedTeePublicKey = x25519.getPublicKey(TEE_PRIVATE_KEY_TEMP);
+  const data = await response.json() as { publicKey: string };
+  if (!data?.publicKey) {
+    throw new Error('TEE /public-key response missing publicKey field');
+  }
+  cachedTeePublicKey = Buffer.from(data.publicKey, 'base64');
   return cachedTeePublicKey;
 }
 
