@@ -12,8 +12,8 @@ export interface SolRouterConfig {
 }
 
 export interface ChatOptions {
-  /** Model to use (defaults to gpt-oss-20b) */
-  model?: 'gpt-oss-20b' | 'gemini-flash' | 'claude-sonnet' | 'claude-sonnet-4' | 'gpt-4o-mini';
+  /** Model to use (defaults to gpt-oss-20b). Privacy mode: self-hosted Nosana open-weight models only. */
+  model?: 'gpt-oss-20b' | 'qwen3-8b';
   /** System prompt */
   systemPrompt?: string;
   /** Enable encryption for this request (overrides client setting) */

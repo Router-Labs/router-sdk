@@ -18,13 +18,10 @@ import type {
 const DEFAULT_BASE_URL = 'https://solrouter-obb4.onrender.com';
 const DEFAULT_MODEL = 'gpt-oss-20b';
 
-// Model mapping for API
+// Privacy mode: only self-hosted Nosana open-weight models are available.
 const MODEL_MAP: Record<string, string> = {
   'gpt-oss-20b': 'nosana:gpt-oss:20b',
-  'gemini-flash': 'gemini:gemini-2.0-flash-exp',
-  'claude-sonnet': 'claude:claude-3-5-sonnet-20241022',
-  'claude-sonnet-4': 'claude:claude-sonnet-4-20250514',
-  'gpt-4o-mini': 'openai:gpt-4o-mini',
+  'qwen3-8b': 'nosana:qwen3:8b',
 };
 
 export class SolRouter {
@@ -239,11 +236,9 @@ export class SolRouter {
    * Get endpoint for a given model
    */
   private getEndpointForModel(model: string): string {
+    // Privacy mode: all models run on the self-hosted Nosana node.
     if (model.startsWith('nosana:')) return '/nosana';
-    if (model.startsWith('gemini:')) return '/gemini';
-    if (model.startsWith('claude:')) return '/claude';
-    if (model.startsWith('openai:')) return '/openai';
-    return '/router'; // Default intelligent routing
+    return '/router'; // Default intelligent routing (Nosana-backed)
   }
 
   /**

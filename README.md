@@ -137,13 +137,12 @@ console.log(response.cost);           // Cost in USDC
 
 ### Available Models
 
+Privacy mode: only self-hosted open-weight models on the Nosana decentralized GPU network. No third-party model APIs.
+
 | Model | Description |
 |-------|-------------|
-| `gpt-oss-20b` | Open-source GPT 20B (default, cheapest) |
-| `qwen3-8b` | Qwen 3 8B parameters |
-| `gemini-flash` | Google Gemini Flash |
-| `claude-sonnet` | Anthropic Claude Sonnet |
-| `gpt-4o-mini` | OpenAI GPT-4o Mini |
+| `gpt-oss-20b` | Open-weight GPT-OSS 20B on Nosana (default) |
+| `qwen3-8b` | Open-weight Qwen 3 8B on Nosana |
 
 ### `client.getBalance()`
 
@@ -160,9 +159,6 @@ console.log(balance.balanceFormatted); // "$10.5000"
 |-------|----------------------|------------------------|
 | gpt-oss-20b | $0.15 | $0.30 |
 | qwen3-8b | $0.05 | $0.10 |
-| gemini-flash | $0.075 | $0.30 |
-| claude-sonnet | $3.00 | $15.00 |
-| gpt-4o-mini | $0.15 | $0.60 |
 
 ## Privacy Guarantee
 
