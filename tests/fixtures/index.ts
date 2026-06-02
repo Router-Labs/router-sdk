@@ -44,21 +44,15 @@ export const mockUnauthorizedResponse = {
   message: 'Invalid or expired token',
 };
 
-// Model mapping expectations
+// Model mapping expectations — open-source / self-hosted Nosana models only
 export const MODEL_MAPPINGS = {
   'gpt-oss-20b': 'nosana:gpt-oss:20b',
-  'gemini-flash': 'gemini:gemini-2.0-flash-exp',
-  'claude-sonnet': 'claude:claude-3-5-sonnet-20241022',
-  'claude-sonnet-4': 'claude:claude-sonnet-4-20250514',
-  'gpt-4o-mini': 'openai:gpt-4o-mini',
+  'qwen3-8b': 'nosana:qwen3:8b',
 } as const;
 
-// Endpoint mapping expectations
+// Endpoint mapping expectations — all open-weight models run on the Nosana node
 export const ENDPOINT_MAPPINGS = {
   'nosana:': '/nosana',
-  'gemini:': '/gemini',
-  'claude:': '/claude',
-  'openai:': '/openai',
   'unknown:': '/router',
 } as const;
 

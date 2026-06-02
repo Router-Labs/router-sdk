@@ -384,26 +384,20 @@ describe('Encryption Module', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
-    it('falls back to dev key on fetch failure', async () => {
+    it('throws on fetch failure (no guessable-key fallback)', async () => {
       mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
-      const result = await fetchTeePublicKey(TEST_BASE_URL);
-
-      // Should return a valid Uint8Array (the fallback dev key)
-      expect(result).toBeInstanceOf(Uint8Array);
-      expect(result.length).toBe(32);
+      // Must refuse to encrypt rather than fall back to a derivable dev key.
+      await expect(fetchTeePublicKey(TEST_BASE_URL)).rejects.toThrow('Network error');
     });
 
-    it('falls back to dev key on non-ok response', async () => {
+    it('throws on non-ok response (no guessable-key fallback)', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 500,
       });
 
-      const result = await fetchTeePublicKey(TEST_BASE_URL);
-
-      expect(result).toBeInstanceOf(Uint8Array);
-      expect(result.length).toBe(32);
+      await expect(fetchTeePublicKey(TEST_BASE_URL)).rejects.toThrow(/Refusing to encrypt/);
     });
   });
 

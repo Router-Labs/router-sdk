@@ -172,9 +172,7 @@ describe('SolRouter Client', () => {
     describe('Model Routing', () => {
       it.each([
         ['gpt-oss-20b', '/nosana'],
-        ['gemini-flash', '/gemini'],
-        ['claude-sonnet', '/claude'],
-        ['gpt-4o-mini', '/openai'],
+        ['qwen3-8b', '/nosana'],
       ])('routes %s to %s endpoint', async (model, expectedEndpoint) => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
@@ -516,7 +514,7 @@ describe('SolRouter Client', () => {
       });
 
       await client.chat('test', {
-        model: 'claude-sonnet',
+        model: 'gpt-oss-20b',
         systemPrompt: 'Be helpful',
         chatId: 'conv-123',
         useRAG: true,
@@ -528,7 +526,7 @@ describe('SolRouter Client', () => {
       const body = JSON.parse(callArgs[1].body);
 
       expect(body).toMatchObject({
-        model: 'claude:claude-3-5-sonnet-20241022',
+        model: 'nosana:gpt-oss:20b',
         systemPrompt: 'Be helpful',
         chatId: 'conv-123',
         useRAG: true,
