@@ -40,7 +40,7 @@
     "url": "https://github.com/solrouter/sdk"
   },
   "dependencies": {
-    "@arcium-hq/client": "^0.10.3"
+    "@arcium-hq/client": "^0.10.4"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
