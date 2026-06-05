@@ -78,6 +78,9 @@ export interface EncryptedData {
   nonce: string;
   publicKey: string;
   ephemeralPrivateKey?: string;
+  // Encoding tag the TEE echoes on its response ('1.0' = 1 byte/element,
+  // '2.0-packed31' = 31 bytes/element). Drives version-aware decoding.
+  version?: string;
 }
 
 export interface BalanceResponse {

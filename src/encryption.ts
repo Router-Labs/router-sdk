@@ -8,6 +8,47 @@
 import { RescueCipher, x25519 } from '@arcium-hq/client';
 import type { EncryptedData } from './types.js';
 
+// Byte-packing for RescueCipher. The cipher runs one (expensive) permutation
+// per field element, so encoding 1 byte/element — the legacy "1.0" format — is
+// ~31x more work than necessary. The Curve25519 base field holds 248 bits, so
+// we pack 31 bytes/element with a 4-byte LE length header (self-describing).
+// MUST match tee-service/src/index.js packBytes/unpackBytes exactly; the wire
+// `version` tag tells the TEE which encoding to use, so old clients are safe.
+const PACK_BYTES = 31;
+export const ENCRYPTION_VERSION = '2.0-packed31'; // legacy 1-byte = '1.0'
+
+function packBytes(bytes: Uint8Array): bigint[] {
+  const len = bytes.length;
+  const buf = new Uint8Array(4 + len);
+  buf[0] = len & 0xff;
+  buf[1] = (len >> 8) & 0xff;
+  buf[2] = (len >> 16) & 0xff;
+  buf[3] = (len >> 24) & 0xff;
+  buf.set(bytes, 4);
+  const out: bigint[] = [];
+  for (let i = 0; i < buf.length; i += PACK_BYTES) {
+    let v = 0n;
+    for (let j = 0; j < PACK_BYTES && i + j < buf.length; j++) {
+      v += BigInt(buf[i + j]) << BigInt(8 * j);
+    }
+    out.push(v);
+  }
+  return out;
+}
+
+function unpackBytes(elems: Array<bigint | number>): Uint8Array {
+  const bytes: number[] = [];
+  for (const raw of elems) {
+    let v = BigInt(raw);
+    for (let j = 0; j < PACK_BYTES; j++) {
+      bytes.push(Number(v & 0xffn));
+      v >>= 8n;
+    }
+  }
+  const len = bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24);
+  return new Uint8Array(bytes.slice(4, 4 + len));
+}
+
 // Session keypair (generated once per SDK instance)
 let sessionKeypair: { privateKey: Uint8Array; publicKey: Uint8Array } | null = null;
 
@@ -67,9 +108,9 @@ export async function encrypt(message: string, baseUrl: string): Promise<Encrypt
   // Get TEE public key
   const teePublicKey = await fetchTeePublicKey(baseUrl);
 
-  // Convert message to BigInt array
+  // Convert message to field elements (31 bytes/element — see packBytes).
   const messageBytes = new TextEncoder().encode(message);
-  const plaintextBigInts = Array.from(messageBytes).map(BigInt);
+  const plaintextBigInts = packBytes(messageBytes);
 
   // Create shared secret with TEE
   const sharedSecret = x25519.getSharedSecret(privateKey, teePublicKey);
@@ -148,8 +189,13 @@ export async function decrypt(
   const cipher = new RescueCipher(sharedSecret);
   const decryptedBigInts = cipher.decrypt(ciphertext, nonce);
 
-  // Convert back to string
-  const decryptedBytes = new Uint8Array(decryptedBigInts.map(Number));
+  // Decode by the version the TEE tagged its response with. Packed responses
+  // (31 bytes/element) must be unpacked; legacy 1.0 responses are 1 byte each.
+  // Falling back to '1.0' keeps us compatible with a not-yet-upgraded TEE.
+  const decryptedBytes =
+    encryptedData.version === ENCRYPTION_VERSION
+      ? unpackBytes(decryptedBigInts)
+      : new Uint8Array(decryptedBigInts.map(Number));
   const decryptedText = new TextDecoder().decode(decryptedBytes);
 
   // Parse response object
@@ -170,7 +216,7 @@ export function packageForTEE(encryptedData: EncryptedData): string {
     nonce: encryptedData.nonce,
     publicKey: encryptedData.publicKey,
     algorithm: 'Arcium-RescueCipher',
-    version: '1.0',
+    version: ENCRYPTION_VERSION,
   });
 }
 

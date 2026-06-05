@@ -307,7 +307,7 @@ describe('Encryption Module', () => {
       expect(result.algorithm).toBe('Arcium-RescueCipher');
     });
 
-    it('includes version field', () => {
+    it('includes version field (packed31 default)', () => {
       const encryptedData: EncryptedData = {
         ciphertext: 'test-ciphertext',
         nonce: 'test-nonce',
@@ -316,7 +316,7 @@ describe('Encryption Module', () => {
 
       const result = JSON.parse(packageForTEE(encryptedData));
 
-      expect(result.version).toBe('1.0');
+      expect(result.version).toBe('2.0-packed31');
     });
 
     it('includes ciphertext, nonce, and publicKey from input', () => {
