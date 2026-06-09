@@ -35,7 +35,7 @@ export class SolRouter {
     }
     if (!config.apiKey.startsWith('sk_solrouter_') || config.apiKey.length < 33) {
       throw new Error(
-        'SolRouter: invalid apiKey format. Keys must start with "sk_solrouter_" followed by at least 20 random characters. Generate one at https://solrouter.io/settings.'
+        'SolRouter: invalid apiKey format. Keys must start with "sk_solrouter_" followed by at least 20 random characters. Generate one at https://solrouter.com/sdk.'
       );
     }
     this.apiKey = config.apiKey;
