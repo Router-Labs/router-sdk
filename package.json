@@ -35,9 +35,13 @@
   ],
   "author": "SolRouter",
   "license": "MIT",
+  "homepage": "https://docs.solrouter.com",
   "repository": {
     "type": "git",
-    "url": "https://github.com/solrouter/sdk"
+    "url": "git+https://github.com/Router-Labs/router-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Router-Labs/router-sdk/issues"
   },
   "dependencies": {
     "@arcium-hq/client": "^0.10.4"
