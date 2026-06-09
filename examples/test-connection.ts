@@ -4,7 +4,7 @@
  * Use this script to verify your API key and test SDK functionality.
  *
  * Usage:
- *   SOLROUTER_API_KEY=sk_solrouter_xxx npx ts-node examples/test-connection.ts
+ *   SOLROUTER_API_KEY=sk_solrouter_xxx npx tsx examples/test-connection.ts
  *
  * Or set environment variables:
  *   export SOLROUTER_API_KEY=sk_solrouter_xxx
@@ -19,7 +19,7 @@ const BASE_URL = process.env.SOLROUTER_BASE_URL || 'https://solrouter-obb4.onren
 
 if (!API_KEY) {
   console.error('Error: SOLROUTER_API_KEY environment variable is required');
-  console.error('Usage: SOLROUTER_API_KEY=sk_solrouter_xxx npx ts-node examples/test-connection.ts');
+  console.error('Usage: SOLROUTER_API_KEY=sk_solrouter_xxx npx tsx examples/test-connection.ts');
   process.exit(1);
 }
 
