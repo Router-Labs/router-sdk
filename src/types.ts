@@ -54,41 +54,7 @@ export interface ChatResponse {
   encrypted: boolean;
   /** Privacy attestation ID (if encrypted) */
   privacyAttestationId?: string;
-  /** BRAID execution trace (when reasoning: 'braid' and braidOptions.includeTrace: true) */
-  braidTrace?: {
-    grdId: string;
-    grdMermaid: string;
-    intent: string;
-    nodes: Array<{
-      nodeId: string;
-      label: string;
-      type: string;
-      status: string;
-      durationMs?: number;
-      tokensUsed?: number;
-    }>;
-    totalDurationMs: number;
-    totalTokens: number;
-    ppd?: number;
-  };
-}
 
-export interface EncryptedData {
-  ciphertext: string;
-  nonce: string;
-  publicKey: string;
-  ephemeralPrivateKey?: string;
-  // Encoding tag the TEE echoes on its response ('1.0' = 1 byte/element,
-  // '2.0-packed31' = 31 bytes/element). Drives version-aware decoding.
-  version?: string;
-}
-
-export interface BalanceResponse {
-  balance: number;
-  balanceFormatted: string;
-}
-
-/** Summary returned by GET /skills — one entry per installed SKILL.md */
 export interface SkillSummary {
   id: string;
   name: string;
