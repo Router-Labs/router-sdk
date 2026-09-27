@@ -5,6 +5,7 @@
  */
 
 import { encrypt, decrypt, packageForTEE, clearSession } from './encryption.js';
+import { fetchRead } from './read.js';
 import type {
   SolRouterConfig,
   ChatOptions,
@@ -28,6 +29,7 @@ export class SolRouter {
   private apiKey: string;
   private baseUrl: string;
   private encrypted: boolean;
+  private retryReads: boolean;
 
   constructor(config: SolRouterConfig) {
     if (!config.apiKey) {
@@ -41,6 +43,7 @@ export class SolRouter {
     this.apiKey = config.apiKey;
     this.baseUrl = config.baseUrl || DEFAULT_BASE_URL;
     this.encrypted = config.encrypted !== false; // Default to true
+    this.retryReads = config.retryReads !== false;
   }
 
   /**
@@ -118,7 +121,7 @@ export class SolRouter {
     options: ChatOptions
   ): Promise<ChatResponse> {
     // Encrypt the prompt
-    const encryptedData = await encrypt(prompt, this.baseUrl);
+    const encryptedData = await encrypt(prompt, this.baseUrl, this.retryReads);
     const encryptedPackage = packageForTEE(encryptedData);
 
     // Send to TEE endpoint
@@ -245,11 +248,9 @@ export class SolRouter {
    * Get account balance
    */
   async getBalance(): Promise<BalanceResponse> {
-    const response = await fetch(`${this.baseUrl}/api/v1/balance`, {
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-      },
-    });
+    const response = await fetchRead(`${this.baseUrl}/api/v1/balance`, {
+      'Authorization': `Bearer ${this.apiKey}`,
+    }, this.retryReads);
 
     if (!response.ok) {
       throw new Error('Failed to fetch balance');
@@ -276,13 +277,13 @@ export class SolRouter {
    */
   readonly skills = {
     list: async (): Promise<SkillSummary[]> => {
-      const res = await fetch(`${this.baseUrl}/skills`);
+      const res = await fetchRead(`${this.baseUrl}/skills`, undefined, this.retryReads);
       if (!res.ok) throw new Error(`skills.list failed: ${res.status}`);
       const data = (await res.json()) as { skills?: SkillSummary[] };
       return Array.isArray(data?.skills) ? data.skills : [];
     },
     get: async (id: string): Promise<Skill> => {
-      const res = await fetch(`${this.baseUrl}/skills/${encodeURIComponent(id)}`);
+      const res = await fetchRead(`${this.baseUrl}/skills/${encodeURIComponent(id)}`, undefined, this.retryReads);
       if (res.status === 404) throw new Error(`skill not found: ${id}`);
       if (!res.ok) throw new Error(`skills.get failed: ${res.status}`);
       return (await res.json()) as Skill;

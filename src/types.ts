@@ -9,6 +9,8 @@ export interface SolRouterConfig {
   baseUrl?: string;
   /** Enable encryption (defaults to true) */
   encrypted?: boolean;
+  /** Retry safe GET reads on 429/502/503 (default: true, at most two retries). Never retries POSTs. */
+  retryReads?: boolean;
 }
 
 export interface ChatOptions {

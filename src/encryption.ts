@@ -6,6 +6,7 @@
  */
 
 import { RescueCipher, x25519 } from '@arcium-hq/client';
+import { fetchRead } from './read.js';
 import type { EncryptedData } from './types.js';
 
 // Byte-packing for RescueCipher. The cipher runs one (expensive) permutation
@@ -69,8 +70,9 @@ function getSessionKeypair(): { privateKey: Uint8Array; publicKey: Uint8Array } 
 
 /**
  * Fetch TEE public key from server
+ * @param retryReads - Retry transient read responses (default: true)
  */
-export async function fetchTeePublicKey(baseUrl: string): Promise<Uint8Array> {
+export async function fetchTeePublicKey(baseUrl: string, retryReads = true): Promise<Uint8Array> {
   if (cachedTeePublicKey) {
     return cachedTeePublicKey;
   }
@@ -79,7 +81,7 @@ export async function fetchTeePublicKey(baseUrl: string): Promise<Uint8Array> {
   // than fall back to a guessable key. The previous Uint8Array(32).fill(42)
   // fallback had a publicly-derivable private key — encrypting to it would
   // have made the ciphertext readable by anyone.
-  const response = await fetch(`${baseUrl}/tee/public-key`);
+  const response = await fetchRead(`${baseUrl}/tee/public-key`, undefined, retryReads);
   if (!response.ok) {
     throw new Error(
       `Cannot fetch TEE public key from ${baseUrl}/tee/public-key (status ${response.status}). ` +
@@ -99,14 +101,15 @@ export async function fetchTeePublicKey(baseUrl: string): Promise<Uint8Array> {
  *
  * @param message - The plaintext message to encrypt
  * @param baseUrl - API base URL (for fetching TEE public key)
+ * @param retryReads - Retry transient public-key read responses (default: true)
  * @returns Encrypted data bundle
  */
-export async function encrypt(message: string, baseUrl: string): Promise<EncryptedData> {
+export async function encrypt(message: string, baseUrl: string, retryReads = true): Promise<EncryptedData> {
   // Get session keypair
   const { privateKey, publicKey } = getSessionKeypair();
 
   // Get TEE public key
-  const teePublicKey = await fetchTeePublicKey(baseUrl);
+  const teePublicKey = await fetchTeePublicKey(baseUrl, retryReads);
 
   // Convert message to field elements (31 bytes/element — see packBytes).
   const messageBytes = new TextEncoder().encode(message);

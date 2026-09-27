@@ -60,6 +60,7 @@ const client = new SolRouter({
   apiKey: 'sk_solrouter_...',   // Required. Keys start with "sk_solrouter_".
   baseUrl: 'https://...',       // Optional. Defaults to the SolRouter production API.
   encrypted: true,              // Optional. Encrypt by default (default: true).
+  retryReads: true,             // Optional. Bounded safe-read retries (default: true).
 });
 ```
 
@@ -151,6 +152,58 @@ the exported `EncryptedData` type:
 import { encrypt, decrypt, packageForTEE, fetchTeePublicKey, clearSession } from '@solrouter/sdk';
 import type { EncryptedData } from '@solrouter/sdk';
 ```
+
+## Retries and backoff
+
+The SDK automatically retries **only safe GET reads**: `getBalance()`,
+`skills.list()`, `skills.get()`, and TEE public-key discovery (including the
+preflight performed by encrypted chat). The policy is:
+
+- Retry HTTP **429, 502 and 503** only, with at most **two retries** after the
+  initial request (three attempts total).
+- Exponential backoff with jitter: the first delay is 250–499 ms and the second
+  is 500–999 ms when the server supplies no longer cooldown.
+- Honor a readable `Retry-After` header expressed as non-negative integer seconds
+  or an HTTP-date. Wait for the greater of the server cooldown and the local
+  backoff. Missing, malformed, zero or past values use the local backoff.
+- Each retry wait is bounded to **30 seconds**. If the server asks for longer,
+  stop and surface the existing method error; do **not** shorten its cooldown and
+  retry early. Retry sleeps total at most 60 seconds; this is **not** a total
+  network timeout. Browsers can read `Retry-After` cross-origin only if the server
+  exposes that header through CORS.
+- Network errors, aborts, JSON parse failures and other HTTP statuses are not
+  retried. Existing result shapes and terminal error messages are unchanged.
+
+Set `retryReads: false` in the constructor to retain the previous single-attempt
+behavior, for example when your application already owns the retry budget. The
+standalone helpers also accept an opt-out: `fetchTeePublicKey(baseUrl, false)` and
+`encrypt(message, baseUrl, false)`. An exhausted public-key read still refuses to
+encrypt; no fallback key or plaintext fallback is introduced.
+
+**POST requests are never automatically replayed**, including plain/encrypted
+chat, BRAID and `skills.match()`. An inference request may have been processed or
+charged before a gateway error reaches the caller. Do not wrap chat, payment or
+swap operations in a generic retry loop without a documented server-side
+idempotency guarantee. The public-key preflight can retry; the inference POST
+that follows it cannot.
+
+### Subscription plans and server responsibilities
+
+This SDK does not currently expose a `/subscriptions/plans` reader. The shared
+safe-read policy addresses the SDK backoff portion of
+[issue #2](https://github.com/Router-Labs/router-sdk/issues/2); it does not change
+application-owned `fetch` calls to that endpoint or add a local plans cache.
+If an application adds such a cache, use a bounded TTL, key it by backend and
+all request parameters (including offer codes), coalesce concurrent reads, and
+do not cache errors or personalized eligibility. Cached prices must not replace
+server-side validation when purchasing.
+
+SDK retries are not server rate limiting. Avoid tight caller retry loops or
+unbounded polling regardless of which backend deployment you use. Catalogue
+caching, rate-limit enforcement, response headers and 502/503 monitoring remain
+backend/deployment responsibilities; see
+[SolRouter #217](https://github.com/Router-Labs/SolRouter/pull/217) for server-side
+plans protection. Its merge alone does not establish production deployment.
 
 ## Available Models
 
