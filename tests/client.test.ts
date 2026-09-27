@@ -401,7 +401,7 @@ describe('SolRouter Client', () => {
 
       await client.chat('sensitive prompt');
 
-      expect(encryption.encrypt).toHaveBeenCalledWith('sensitive prompt', TEST_BASE_URL);
+      expect(encryption.encrypt).toHaveBeenCalledWith('sensitive prompt', TEST_BASE_URL, true);
       expect(encryption.packageForTEE).toHaveBeenCalled();
     });
 

@@ -60,6 +60,8 @@ import {
   clearSession,
 } from '../src/encryption.js';
 import type { EncryptedData } from '../src/types.js';
+import { SolRouter } from '../src/client.js';
+import { TEST_API_KEY } from './fixtures/index.js';
 
 describe('Encryption Module', () => {
   beforeEach(() => {
@@ -398,6 +400,76 @@ describe('Encryption Module', () => {
       });
 
       await expect(fetchTeePublicKey(TEST_BASE_URL)).rejects.toThrow(/Refusing to encrypt/);
+    });
+  });
+
+  describe('safe public-key reads', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.spyOn(Math, 'random').mockReturnValue(0);
+      mockFetch.mockReset();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it.each([429, 502, 503])('retries key discovery on HTTP %s, then caches only success', async status => {
+      mockFetch
+        .mockResolvedValueOnce(new Response('Unavailable', { status }))
+        .mockResolvedValueOnce(new Response(JSON.stringify(mockTeePublicKeyResponse)));
+      const result = fetchTeePublicKey(TEST_BASE_URL).catch(error => error);
+      await vi.advanceTimersByTimeAsync(249);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await result).toEqual(Buffer.from(mockTeePublicKeyResponse.publicKey, 'base64'));
+      expect(mockFetch.mock.calls).toEqual([
+        [`${TEST_BASE_URL}/tee/public-key`],
+        [`${TEST_BASE_URL}/tee/public-key`],
+      ]);
+      await fetchTeePublicKey(TEST_BASE_URL);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it.each([429, 502, 503])('does not replay HTTP %s inference after a recovered key preflight', async status => {
+      const client = new SolRouter({ apiKey: TEST_API_KEY, baseUrl: TEST_BASE_URL });
+      mockFetch
+        .mockResolvedValueOnce(new Response('Unavailable', { status: 502 }))
+        .mockResolvedValueOnce(new Response(JSON.stringify(mockTeePublicKeyResponse)))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'Outcome unknown' }), { status }));
+      const result = client.chat('test').catch(error => error);
+      await vi.runAllTimersAsync();
+      expect(await result).toEqual(new Error('SolRouter API error: Outcome unknown'));
+      expect(mockFetch.mock.calls.map(([url, init]) => [url, init?.method ?? 'GET'])).toEqual([
+        [`${TEST_BASE_URL}/tee/public-key`, 'GET'],
+        [`${TEST_BASE_URL}/tee/public-key`, 'GET'],
+        [`${TEST_BASE_URL}/tee/process`, 'POST'],
+      ]);
+      expect(mockCipherEncrypt).toHaveBeenCalledTimes(1);
+    });
+
+    it('refuses encrypted inference after public-key retries are exhausted', async () => {
+      const client = new SolRouter({ apiKey: TEST_API_KEY, baseUrl: TEST_BASE_URL });
+      mockFetch.mockImplementation(() => Promise.resolve(new Response('Unavailable', { status: 503 })));
+      const result = client.chat('test').catch(error => error);
+      await vi.runAllTimersAsync();
+      expect((await result).message).toMatch(/Refusing to encrypt/);
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+      expect(mockFetch.mock.calls.every(([url]) => url === `${TEST_BASE_URL}/tee/public-key`)).toBe(true);
+      expect(mockCipherEncrypt).not.toHaveBeenCalled();
+    });
+
+    it.each(['key', 'encrypt', 'client'] as const)('respects retry opt-out through %s', async entrypoint => {
+      mockFetch.mockImplementation(() => Promise.resolve(new Response('Unavailable', { status: 503 })));
+      const client = new SolRouter({ apiKey: TEST_API_KEY, baseUrl: TEST_BASE_URL, retryReads: false });
+      const request = entrypoint === 'key'
+        ? fetchTeePublicKey(TEST_BASE_URL, false)
+        : entrypoint === 'encrypt' ? encrypt('test', TEST_BASE_URL, false) : client.chat('test');
+      const result = request.catch(error => error);
+      await vi.runAllTimersAsync();
+      expect((await result).message).toMatch(/Refusing to encrypt/);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockCipherEncrypt).not.toHaveBeenCalled();
     });
   });
 
