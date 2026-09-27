@@ -15,7 +15,7 @@ import type {
   SkillMatch,
 } from './types.js';
 
-const DEFAULT_BASE_URL = 'https://solrouter-obb4.onrender.com';
+const DEFAULT_BASE_URL = 'https://api.solrouter.com';
 const DEFAULT_MODEL = 'gpt-oss-20b';
 
 // Privacy mode: only self-hosted Nosana open-weight models are available.

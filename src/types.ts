@@ -5,7 +5,7 @@
 export interface SolRouterConfig {
   /** Your SolRouter API key (starts with sk_solrouter_) */
   apiKey: string;
-  /** API base URL (defaults to https://solrouter-obb4.onrender.com) */
+  /** API base URL (defaults to https://api.solrouter.com) */
   baseUrl?: string;
   /** Enable encryption (defaults to true) */
   encrypted?: boolean;

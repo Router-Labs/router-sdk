@@ -63,8 +63,14 @@ const client = new SolRouter({
 });
 ```
 
-The default `baseUrl` targets SolRouter production. The canonical production host is
-`https://api.solrouter.com`; pass your own `baseUrl` to point at a self-hosted backend.
+The default `baseUrl` is `https://api.solrouter.com`. Pass your own `baseUrl` to
+point at a self-hosted backend; explicit URLs are never rewritten. The connection
+example also accepts `SOLROUTER_BASE_URL` as an override.
+
+This default takes effect when the updated SDK is released and your application
+upgrades to it. Existing installed SDKs and explicit legacy Render URLs are not
+changed by a server deployment. Keep the legacy origin available until those
+clients migrate; no automatic fallback or request replay is added by this change.
 
 ### `client.chat(prompt, options?)`
 
