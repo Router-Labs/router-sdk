@@ -7,8 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Documentation and repository housekeeping only — no SDK code or runtime behavior changed.
+## [1.2.0] - 2026-09-27
 
+### Changed
+- Default API base is now `https://api.solrouter.com` (was the raw Render origin).
+- Safe reads (GET) retry transient failures with bounded exponential backoff and honour
+  `Retry-After`. Paid requests are never replayed automatically.
+- **Requires Node 20 or later.** Node 18 (end-of-life) cannot load the Arcium dependency
+  tree: `rpc-websockets` `require()`s the ESM-only `uuid`.
 ### Changed
 - Corrected the API-key generation URL in the invalid-key error message to
   `solrouter.com/sdk` (previously pointed at an outdated host).
@@ -22,7 +28,7 @@ Documentation and repository housekeeping only — no SDK code or runtime behavi
 
 ### Added
 - `LICENSE` (MIT), `CHANGELOG.md`, `.gitignore`, and a GitHub Actions CI workflow
-  (build + test on Node 18, 20, and 22).
+  (build + test on Node 20, 22, and 24).
 
 ## [1.1.0]
 
