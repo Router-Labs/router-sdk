@@ -59,7 +59,7 @@ export const ENDPOINT_MAPPINGS = {
 // Test constants
 export const TEST_API_KEY = 'sk_solrouter_test_key_1234567890abcdef';
 export const TEST_BASE_URL = 'https://test.solrouter.com';
-export const DEFAULT_BASE_URL = 'https://solrouter-obb4.onrender.com';
+export const DEFAULT_BASE_URL = 'https://api.solrouter.com';
 
 // Mock encrypted data structure
 export const mockEncryptedData = {

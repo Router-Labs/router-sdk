@@ -15,7 +15,7 @@ import { SolRouter } from '@solrouter/sdk';
 
 // Configuration from environment
 const API_KEY = process.env.SOLROUTER_API_KEY;
-const BASE_URL = process.env.SOLROUTER_BASE_URL || 'https://solrouter-obb4.onrender.com';
+const BASE_URL = process.env.SOLROUTER_BASE_URL || 'https://api.solrouter.com';
 
 if (!API_KEY) {
   console.error('Error: SOLROUTER_API_KEY environment variable is required');

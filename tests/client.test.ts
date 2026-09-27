@@ -76,7 +76,7 @@ describe('SolRouter Client', () => {
       await client.chat('test');
 
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining(DEFAULT_BASE_URL),
+        `${DEFAULT_BASE_URL}/nosana`,
         expect.any(Object)
       );
     });
@@ -96,7 +96,7 @@ describe('SolRouter Client', () => {
       await client.chat('test');
 
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining(TEST_BASE_URL),
+        `${TEST_BASE_URL}/nosana`,
         expect.any(Object)
       );
     });
@@ -125,8 +125,10 @@ describe('SolRouter Client', () => {
       await client.chat('test');
 
       // Should call TEE endpoint for encrypted chat
+      expect(vi.mocked(encryption.encrypt).mock.calls[0]?.slice(0, 2))
+        .toEqual(['test', DEFAULT_BASE_URL]);
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/tee/process'),
+        `${DEFAULT_BASE_URL}/tee/process`,
         expect.any(Object)
       );
     });
