@@ -269,9 +269,12 @@ Two mitigations exist:
   compares the served key to your pin and refuses to encrypt on a mismatch. Get the
   expected key from a trusted channel (for example, a value you verified once and
   stored).
-- **Full attestation is a tracked follow-up.** End-to-end Intel TDX attestation that
-  binds the enclave to the served key, so the SDK can verify it before encrypting, is
-  planned. See [SolRouter#security](https://github.com/Router-Labs/SolRouter/issues).
+- **Full attestation is a tracked follow-up.** End-to-end Intel TDX (Phala dstack)
+  attestation that binds the enclave to the served key, so the SDK can verify it before
+  encrypting, is planned. Binding the key alone is not enough: real verification must
+  also check the enclave measurements (MRTD and the RTMR event log), so the SDK trusts
+  the intended enclave and not just any genuine TDX enclave. Tracked in
+  [SolRouter#230](https://github.com/Router-Labs/SolRouter/issues/230).
 
 Server responses also use the RescueCipher without a separate authentication tag, so
 tampering or truncation of a response is not currently detected client-side. Response
