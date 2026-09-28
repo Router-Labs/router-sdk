@@ -489,6 +489,76 @@ describe('Encryption Module', () => {
       ).rejects.toThrow(/does not match the pinned teePublicKey/);
       expect(mockCipherEncrypt).not.toHaveBeenCalled();
     });
+    it('fails closed when concurrent same-URL fetches swap keys under a pin', async () => {
+      const genuineKey = new Uint8Array(32).fill(0x11);
+      const attackerKey = new Uint8Array(32).fill(0x22);
+      const genuineBase64 = Buffer.from(genuineKey).toString('base64');
+      const attackerBase64 = Buffer.from(attackerKey).toString('base64');
+      const pendingResponses: Array<(response: { ok: true; json: () => Promise<{ publicKey: string }> }) => void> = [];
+      mockFetch.mockImplementation(() =>
+        new Promise(resolve => pendingResponses.push(resolve))
+      );
+
+      const first = encrypt('first', TEST_BASE_URL, true, genuineBase64);
+      const second = encrypt('second', TEST_BASE_URL, true, genuineBase64);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      // The genuine response writes first; the attacker response writes last.
+      pendingResponses[0]({ ok: true, json: () => Promise.resolve({ publicKey: genuineBase64 }) });
+      await expect(first).resolves.toBeDefined();
+      pendingResponses[1]({ ok: true, json: () => Promise.resolve({ publicKey: attackerBase64 }) });
+
+      await expect(second).rejects.toThrow(/does not match the pinned teePublicKey/);
+      expect(mockGetSharedSecret).toHaveBeenCalledTimes(1);
+      expect(Array.from(mockGetSharedSecret.mock.calls[0][1] as Uint8Array)).toEqual(Array.from(genuineKey));
+    });
+
+    it('binds both concurrent encryptions to the genuine key when pinned', async () => {
+      const genuineKey = new Uint8Array(32).fill(0x11);
+      const genuineBase64 = Buffer.from(genuineKey).toString('base64');
+      const pendingResponses: Array<(response: { ok: true; json: () => Promise<{ publicKey: string }> }) => void> = [];
+      mockFetch.mockImplementation(() =>
+        new Promise(resolve => pendingResponses.push(resolve))
+      );
+
+      const first = encrypt('first', TEST_BASE_URL, true, genuineBase64);
+      const second = encrypt('second', TEST_BASE_URL, true, genuineBase64);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      pendingResponses[0]({ ok: true, json: () => Promise.resolve({ publicKey: genuineBase64 }) });
+      await expect(first).resolves.toBeDefined();
+      pendingResponses[1]({ ok: true, json: () => Promise.resolve({ publicKey: genuineBase64 }) });
+      await expect(second).resolves.toBeDefined();
+
+      expect(mockGetSharedSecret).toHaveBeenCalledTimes(2);
+      for (const [, servedKey] of mockGetSharedSecret.mock.calls) {
+        expect(Array.from(servedKey as Uint8Array)).toEqual(Array.from(genuineKey));
+      }
+    });
+
+    it('can bind the attacker key in the same race when no pin is set', async () => {
+      const genuineKey = new Uint8Array(32).fill(0x11);
+      const attackerKey = new Uint8Array(32).fill(0x22);
+      const genuineBase64 = Buffer.from(genuineKey).toString('base64');
+      const attackerBase64 = Buffer.from(attackerKey).toString('base64');
+      const pendingResponses: Array<(response: { ok: true; json: () => Promise<{ publicKey: string }> }) => void> = [];
+      mockFetch.mockImplementation(() =>
+        new Promise(resolve => pendingResponses.push(resolve))
+      );
+
+      const first = encrypt('first', TEST_BASE_URL);
+      const second = encrypt('second', TEST_BASE_URL);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      pendingResponses[0]({ ok: true, json: () => Promise.resolve({ publicKey: genuineBase64 }) });
+      await expect(first).resolves.toBeDefined();
+      pendingResponses[1]({ ok: true, json: () => Promise.resolve({ publicKey: attackerBase64 }) });
+      await expect(second).resolves.toBeDefined();
+
+      expect(mockGetSharedSecret).toHaveBeenCalledTimes(2);
+      expect(Array.from(mockGetSharedSecret.mock.calls[0][1] as Uint8Array)).toEqual(Array.from(genuineKey));
+      expect(Array.from(mockGetSharedSecret.mock.calls[1][1] as Uint8Array)).toEqual(Array.from(attackerKey));
+    });
   });
 
   describe('safe public-key reads', () => {
