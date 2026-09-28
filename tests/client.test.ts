@@ -387,6 +387,27 @@ describe('SolRouter Client', () => {
       );
     });
 
+    it('passes the configured teePublicKey pin through to encrypt', async () => {
+      const pinnedClient = new SolRouter({
+        apiKey: TEST_API_KEY,
+        baseUrl: TEST_BASE_URL,
+        encrypted: true,
+        teePublicKey: 'pinned-key-b64',
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            encryptedResponse: JSON.stringify({ ciphertext: 'x', nonce: 'y', publicKey: 'z' }),
+            metadata: { model: 'test' },
+          }),
+      });
+
+      await pinnedClient.chat('secret');
+
+      expect(encryption.encrypt).toHaveBeenCalledWith('secret', TEST_BASE_URL, true, 'pinned-key-b64');
+    });
+
     it('encrypts prompt client-side before sending', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -565,6 +586,82 @@ describe('SolRouter Client', () => {
 
         await expect(client.chat('test')).rejects.toThrow('SolRouter API error: TEE unavailable');
       });
+    });
+  });
+
+  describe('Chat - BRAID reasoning', () => {
+    it('refuses BRAID when encryption is on (default) instead of sending plaintext', async () => {
+      const client = new SolRouter({ apiKey: TEST_API_KEY, baseUrl: TEST_BASE_URL });
+
+      await expect(client.chat('secret plan', { reasoning: 'braid' })).rejects.toThrow(
+        /BRAID reasoning does not support client-side encryption/
+      );
+      // No request leaves the device: the plaintext prompt is never POSTed.
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('honors the per-request encrypted option on the BRAID path (no longer ignored)', async () => {
+      // Client defaults to plaintext, but the request explicitly asks for encryption.
+      const client = new SolRouter({ apiKey: TEST_API_KEY, baseUrl: TEST_BASE_URL, encrypted: false });
+
+      await expect(
+        client.chat('secret plan', { reasoning: 'braid', encrypted: true })
+      ).rejects.toThrow(/BRAID reasoning does not support client-side encryption/);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('routes BRAID to /agent when encryption is explicitly disabled', async () => {
+      const client = new SolRouter({ apiKey: TEST_API_KEY, baseUrl: TEST_BASE_URL });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ success: true, reply: 'braided answer', model: 'nosana:gpt-oss:20b' }),
+      });
+
+      const res = await client.chat('plan a migration', { reasoning: 'braid', encrypted: false });
+
+      expect(mockFetch).toHaveBeenCalledWith(`${TEST_BASE_URL}/agent`, expect.any(Object));
+      expect(res.message).toBe('braided answer');
+      expect(res.encrypted).toBe(false);
+    });
+
+    it('forwards systemPrompt/useRAG/ragCollection/useLiveSearch on the BRAID path', async () => {
+      const client = new SolRouter({ apiKey: TEST_API_KEY, baseUrl: TEST_BASE_URL });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, reply: 'ok', model: 'nosana:gpt-oss:20b' }),
+      });
+
+      await client.chat('summarize', {
+        reasoning: 'braid',
+        encrypted: false,
+        systemPrompt: 'Answer in one sentence.',
+        useRAG: true,
+        ragCollection: 'docs',
+        useLiveSearch: true,
+      });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.systemPrompt).toBe('Answer in one sentence.');
+      expect(body.useRAG).toBe(true);
+      expect(body.ragCollection).toBe('docs');
+      expect(body.useLiveSearch).toBe(true);
+    });
+  });
+
+  describe('Chat - Encrypted response validation', () => {
+    it('throws a structured API error (not a raw crash) on a 200 body missing encryptedResponse', async () => {
+      const client = new SolRouter({ apiKey: TEST_API_KEY, baseUrl: TEST_BASE_URL, encrypted: true });
+      vi.mocked(encryption.encrypt).mockResolvedValue({
+        ciphertext: 'c', nonce: 'n', publicKey: 'p', ephemeralPrivateKey: 'e',
+      });
+      vi.mocked(encryption.packageForTEE).mockReturnValue('{}');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ metadata: { model: 'x' } }), // no encryptedResponse
+      });
+
+      await expect(client.chat('hi')).rejects.toThrow(/SolRouter API error: malformed encrypted response/);
     });
   });
 });

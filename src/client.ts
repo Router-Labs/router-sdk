@@ -30,6 +30,7 @@ export class SolRouter {
   private baseUrl: string;
   private encrypted: boolean;
   private retryReads: boolean;
+  private teePublicKey?: string;
 
   constructor(config: SolRouterConfig) {
     if (!config.apiKey) {
@@ -44,6 +45,7 @@ export class SolRouter {
     this.baseUrl = config.baseUrl || DEFAULT_BASE_URL;
     this.encrypted = config.encrypted !== false; // Default to true
     this.retryReads = config.retryReads !== false;
+    this.teePublicKey = config.teePublicKey;
   }
 
   /**
@@ -54,12 +56,21 @@ export class SolRouter {
    * @returns The AI response
    */
   async chat(prompt: string, options: ChatOptions = {}): Promise<ChatResponse> {
-    // BRAID reasoning path — routes through the agent endpoint
+    const useEncryption = options.encrypted ?? this.encrypted;
+
+    // BRAID reasoning path — routes through the plaintext /agent endpoint, which
+    // has no client-side encryption transport. Refuse rather than silently send
+    // the prompt in cleartext when the caller expects encryption (the default).
     if (options.reasoning === 'braid') {
+      if (useEncryption) {
+        throw new Error(
+          'SolRouter: BRAID reasoning does not support client-side encryption. ' +
+          'Pass { encrypted: false } to send this prompt to the /agent endpoint in plaintext.'
+        );
+      }
       return this.braidChat(prompt, options);
     }
 
-    const useEncryption = options.encrypted ?? this.encrypted;
     const model = MODEL_MAP[options.model || DEFAULT_MODEL] || options.model || MODEL_MAP[DEFAULT_MODEL];
 
     if (useEncryption) {
@@ -87,6 +98,10 @@ export class SolRouter {
         chatId: options.chatId,
         reasoning: 'braid',
         braidOptions: options.braidOptions,
+        systemPrompt: options.systemPrompt,
+        useRAG: options.useRAG,
+        ragCollection: options.ragCollection,
+        useLiveSearch: options.useLiveSearch,
       }),
     });
 
@@ -120,8 +135,11 @@ export class SolRouter {
     model: string,
     options: ChatOptions
   ): Promise<ChatResponse> {
-    // Encrypt the prompt
-    const encryptedData = await encrypt(prompt, this.baseUrl, this.retryReads);
+    // Encrypt the prompt. Only pass the pin arg when one is configured, so the
+    // default call shape (3 args) is unchanged when no key is pinned.
+    const encryptedData = this.teePublicKey
+      ? await encrypt(prompt, this.baseUrl, this.retryReads, this.teePublicKey)
+      : await encrypt(prompt, this.baseUrl, this.retryReads);
     const encryptedPackage = packageForTEE(encryptedData);
 
     // Send to TEE endpoint
@@ -159,11 +177,23 @@ export class SolRouter {
       privacyAttestationId?: string;
     };
 
-    // Decrypt the response
-    const decryptedMessage = await decrypt(
-      JSON.parse(data.encryptedResponse),
-      encryptedData.ephemeralPrivateKey
-    );
+    // Decrypt the response. Guard the untrusted 200 body: a missing field or
+    // malformed encryptedResponse must surface as a structured API error, not a
+    // raw SyntaxError/TypeError out of a paid call.
+    let decryptedMessage: string;
+    try {
+      if (typeof data.encryptedResponse !== 'string') {
+        throw new Error('missing encryptedResponse');
+      }
+      decryptedMessage = await decrypt(
+        JSON.parse(data.encryptedResponse),
+        encryptedData.ephemeralPrivateKey
+      );
+    } catch (err) {
+      throw new Error(
+        `SolRouter API error: malformed encrypted response (${(err as Error).message})`
+      );
+    }
 
     return {
       message: decryptedMessage,

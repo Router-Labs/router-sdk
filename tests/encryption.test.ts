@@ -386,6 +386,29 @@ describe('Encryption Module', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
+    it('keys the cache by baseUrl (does not reuse another backend key)', async () => {
+      const urlA = 'https://a.example';
+      const urlB = 'https://b.example';
+      const keyA = { publicKey: Buffer.from(new Uint8Array(32).fill(0xaa)).toString('base64') };
+      const keyB = { publicKey: Buffer.from(new Uint8Array(32).fill(0xbb)).toString('base64') };
+      mockFetch.mockImplementation((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(url.startsWith(urlA) ? keyA : keyB),
+        })
+      );
+
+      const resultA = await fetchTeePublicKey(urlA);
+      const resultB = await fetchTeePublicKey(urlB);
+
+      // Each backend gets its own key back, not whichever was fetched first.
+      expect(Buffer.from(resultA).toString('base64')).toBe(keyA.publicKey);
+      expect(Buffer.from(resultB).toString('base64')).toBe(keyB.publicKey);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenCalledWith(`${urlA}/tee/public-key`);
+      expect(mockFetch).toHaveBeenCalledWith(`${urlB}/tee/public-key`);
+    });
+
     it('throws on fetch failure (no guessable-key fallback)', async () => {
       mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
@@ -400,6 +423,71 @@ describe('Encryption Module', () => {
       });
 
       await expect(fetchTeePublicKey(TEST_BASE_URL)).rejects.toThrow(/Refusing to encrypt/);
+    });
+  });
+
+  describe('TEE public-key pinning (optional)', () => {
+    const WRONG_PIN = Buffer.from(new Uint8Array(32).fill(0xbb)).toString('base64');
+
+    it('accepts a served key that matches the pin', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockTeePublicKeyResponse),
+      });
+
+      const result = await fetchTeePublicKey(TEST_BASE_URL, true, mockTeePublicKeyResponse.publicKey);
+
+      expect(Buffer.from(result).toString('base64')).toBe(mockTeePublicKeyResponse.publicKey);
+    });
+
+    it('throws when the served key does not match the pin', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockTeePublicKeyResponse),
+      });
+
+      await expect(
+        fetchTeePublicKey(TEST_BASE_URL, true, WRONG_PIN)
+      ).rejects.toThrow(/does not match the pinned teePublicKey/);
+    });
+
+    it('fetches and does not throw when no pin is set (unchanged default)', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockTeePublicKeyResponse),
+      });
+
+      const result = await fetchTeePublicKey(TEST_BASE_URL);
+
+      expect(mockFetch).toHaveBeenCalledWith(`${TEST_BASE_URL}/tee/public-key`);
+      expect(result).toBeInstanceOf(Uint8Array);
+    });
+
+    it('does not cache a key that fails the pin', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockTeePublicKeyResponse),
+      });
+
+      await expect(
+        fetchTeePublicKey(TEST_BASE_URL, true, WRONG_PIN)
+      ).rejects.toThrow(/does not match the pinned teePublicKey/);
+      // Second call must re-fetch (nothing poisoned the cache), then succeed with the right pin.
+      const result = await fetchTeePublicKey(TEST_BASE_URL, true, mockTeePublicKeyResponse.publicKey);
+      expect(result).toBeInstanceOf(Uint8Array);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('encrypt() refuses when the served key fails the pin', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockTeePublicKeyResponse),
+      });
+
+      await expect(
+        encrypt('secret', TEST_BASE_URL, true, WRONG_PIN)
+      ).rejects.toThrow(/does not match the pinned teePublicKey/);
+      expect(mockCipherEncrypt).not.toHaveBeenCalled();
     });
   });
 

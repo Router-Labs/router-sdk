@@ -11,6 +11,13 @@ export interface SolRouterConfig {
   encrypted?: boolean;
   /** Retry safe GET reads on 429/502/503 (default: true, at most two retries). Never retries POSTs. */
   retryReads?: boolean;
+  /**
+   * Optional base64 TEE X25519 public key to pin. When set, the SDK compares
+   * the key served by GET /tee/public-key to this value and refuses to encrypt
+   * on a mismatch (a compromised backend cannot substitute its own key). When
+   * unset, behavior is unchanged: the served key is trusted as before.
+   */
+  teePublicKey?: string;
 }
 
 export interface ChatOptions {
