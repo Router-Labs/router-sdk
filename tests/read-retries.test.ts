@@ -294,7 +294,7 @@ describe('safe read retries', () => {
     ['plain inference', '/nosana', c => c.chat('test', { encrypted: false })],
     ['routed inference', '/router', c => c.chat('test', { encrypted: false, model: 'custom' as any })],
     ['encrypted inference', '/tee/process', c => c.chat('test')],
-    ['BRAID inference', '/agent', c => c.chat('test', { reasoning: 'braid' })],
+    ['BRAID inference', '/agent', c => c.chat('test', { reasoning: 'braid', encrypted: false })],
     ['skill matching', '/skills/match', c => c.skills.match('test')],
   ];
 

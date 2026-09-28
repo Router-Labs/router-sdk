@@ -61,8 +61,15 @@ const client = new SolRouter({
   baseUrl: 'https://...',       // Optional. Defaults to the SolRouter production API.
   encrypted: true,              // Optional. Encrypt by default (default: true).
   retryReads: true,             // Optional. Bounded safe-read retries (default: true).
+  teePublicKey: '<base64>',     // Optional. Pin the TEE key; throws on mismatch (default: none).
 });
 ```
+
+Set `teePublicKey` to a base64 TEE X25519 public key to pin it. When set, the SDK
+compares the key served by `GET /tee/public-key` to your pinned value and refuses
+to encrypt on a mismatch, so a compromised backend cannot substitute its own key
+and read your prompts. When unset, the served key is trusted as before. See
+[Privacy Guarantee](#privacy-guarantee).
 
 The default `baseUrl` is `https://api.solrouter.com`. Pass your own `baseUrl` to
 point at a self-hosted backend; explicit URLs are never rewritten. The connection
@@ -109,11 +116,15 @@ const response = await client.chat('Summarize this public article', {
 #### BRAID structured reasoning
 
 Set `reasoning: 'braid'` to route the request through SolRouter's BRAID reasoning
-pipeline and (optionally) receive an execution trace:
+pipeline and (optionally) receive an execution trace. The BRAID path runs through
+the plaintext `/agent` endpoint and does not support client-side encryption, so you
+must pass `encrypted: false`. With encryption left on (the default) the SDK throws
+instead of sending your prompt in cleartext:
 
 ```typescript
 const response = await client.chat('Plan a multi-step migration', {
   reasoning: 'braid',
+  encrypted: false,
   braidOptions: { includeTrace: true },
 });
 
@@ -243,6 +254,28 @@ When encryption is enabled (the default):
 
 If the TEE public key cannot be fetched, the SDK **refuses to encrypt** rather than
 falling back to a guessable key.
+
+### Trust model and current limits
+
+Be honest about what protects your prompt today. Client-side confidentiality
+currently depends on trusting the backend to return a genuine TEE public key. The
+SDK fetches that key from `GET /tee/public-key` and, by default, does not verify it
+against a hardware attestation. A malicious or compromised backend could serve its
+own key and read your prompts (key substitution).
+
+Two mitigations exist:
+
+- **Pin the key.** Pass `teePublicKey` (base64) in the constructor. The SDK then
+  compares the served key to your pin and refuses to encrypt on a mismatch. Get the
+  expected key from a trusted channel (for example, a value you verified once and
+  stored).
+- **Full attestation is a tracked follow-up.** End-to-end Intel TDX attestation that
+  binds the enclave to the served key, so the SDK can verify it before encrypting, is
+  planned. See [SolRouter#security](https://github.com/Router-Labs/SolRouter/issues).
+
+Server responses also use the RescueCipher without a separate authentication tag, so
+tampering or truncation of a response is not currently detected client-side. Response
+integrity is a tracked follow-up.
 
 ## Testing Your Setup
 

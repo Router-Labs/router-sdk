@@ -53,8 +53,11 @@ function unpackBytes(elems: Array<bigint | number>): Uint8Array {
 // Session keypair (generated once per SDK instance)
 let sessionKeypair: { privateKey: Uint8Array; publicKey: Uint8Array } | null = null;
 
-// Cached TEE public key
-let cachedTeePublicKey: Uint8Array | null = null;
+// Cached TEE public key, keyed by baseUrl. Each backend (the canonical API, a
+// self-hosted deployment, or the legacy origin) publishes its own TEE key. A
+// single shared slot would return whichever backend was queried first, so a
+// later request to a different baseUrl would be encrypted to the wrong TEE.
+const cachedTeePublicKeys = new Map<string, Uint8Array>();
 
 /**
  * Initialize or get the session keypair
@@ -68,13 +71,37 @@ function getSessionKeypair(): { privateKey: Uint8Array; publicKey: Uint8Array } 
   return sessionKeypair;
 }
 
+// Optional key pinning. When the caller pins a base64 TEE key, the served key
+// must match it byte-for-byte or we refuse to encrypt. This is an interim
+// mitigation for the absence of TDX attestation: without a pin the SDK still
+// trusts whatever key the backend serves, so a compromised backend could
+// substitute its own key and read prompts. Public-key comparison, so a plain
+// byte-equal check is enough (no secret, no timing concern).
+function assertPinnedKey(fetched: Uint8Array, expectedBase64: string | undefined, baseUrl: string): void {
+  if (!expectedBase64) return;
+  const expected = Buffer.from(expectedBase64, 'base64');
+  if (expected.length !== fetched.length || !Buffer.from(fetched).equals(expected)) {
+    throw new Error(
+      `SolRouter: TEE public key served by ${baseUrl}/tee/public-key does not match the pinned teePublicKey. ` +
+      `Refusing to encrypt — the backend may be substituting keys (possible MITM).`
+    );
+  }
+}
+
 /**
  * Fetch TEE public key from server
  * @param retryReads - Retry transient read responses (default: true)
+ * @param expectedPublicKey - Optional base64 key to pin; throws on mismatch (default: no pin)
  */
-export async function fetchTeePublicKey(baseUrl: string, retryReads = true): Promise<Uint8Array> {
-  if (cachedTeePublicKey) {
-    return cachedTeePublicKey;
+export async function fetchTeePublicKey(
+  baseUrl: string,
+  retryReads = true,
+  expectedPublicKey?: string,
+): Promise<Uint8Array> {
+  const cached = cachedTeePublicKeys.get(baseUrl);
+  if (cached) {
+    assertPinnedKey(cached, expectedPublicKey, baseUrl);
+    return cached;
   }
 
   // No fallback: if the TEE is unreachable we MUST refuse to encrypt rather
@@ -92,8 +119,11 @@ export async function fetchTeePublicKey(baseUrl: string, retryReads = true): Pro
   if (!data?.publicKey) {
     throw new Error('TEE /public-key response missing publicKey field');
   }
-  cachedTeePublicKey = Buffer.from(data.publicKey, 'base64');
-  return cachedTeePublicKey;
+  const teePublicKey = Buffer.from(data.publicKey, 'base64');
+  // Verify the pin before caching so a mismatched key never poisons the cache.
+  assertPinnedKey(teePublicKey, expectedPublicKey, baseUrl);
+  cachedTeePublicKeys.set(baseUrl, teePublicKey);
+  return teePublicKey;
 }
 
 /**
@@ -102,14 +132,20 @@ export async function fetchTeePublicKey(baseUrl: string, retryReads = true): Pro
  * @param message - The plaintext message to encrypt
  * @param baseUrl - API base URL (for fetching TEE public key)
  * @param retryReads - Retry transient public-key read responses (default: true)
+ * @param expectedTeePublicKey - Optional base64 key to pin; throws on mismatch (default: no pin)
  * @returns Encrypted data bundle
  */
-export async function encrypt(message: string, baseUrl: string, retryReads = true): Promise<EncryptedData> {
+export async function encrypt(
+  message: string,
+  baseUrl: string,
+  retryReads = true,
+  expectedTeePublicKey?: string,
+): Promise<EncryptedData> {
   // Get session keypair
   const { privateKey, publicKey } = getSessionKeypair();
 
   // Get TEE public key
-  const teePublicKey = await fetchTeePublicKey(baseUrl, retryReads);
+  const teePublicKey = await fetchTeePublicKey(baseUrl, retryReads, expectedTeePublicKey);
 
   // Convert message to field elements (31 bytes/element — see packBytes).
   const messageBytes = new TextEncoder().encode(message);
@@ -228,5 +264,5 @@ export function packageForTEE(encryptedData: EncryptedData): string {
  */
 export function clearSession(): void {
   sessionKeypair = null;
-  cachedTeePublicKey = null;
+  cachedTeePublicKeys.clear();
 }

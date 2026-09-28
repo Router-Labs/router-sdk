@@ -7,7 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.2.0] - 2026-09-27
+Security bug-hunt fixes. These are not yet released. The version bump is the owner's
+decision, so no version number is assigned here.
+
+### Security
+- BRAID no longer sends your prompt in plaintext when encryption is on. The BRAID path
+  routes through the plaintext `/agent` endpoint, which has no client-side encryption.
+  With encryption enabled (the default) the SDK now throws instead of leaking the prompt.
+  Pass `encrypted: false` to use BRAID. This is a runtime behavior change: a BRAID call
+  that previously ran with default settings now throws until the caller opts out.
+- Added an optional `teePublicKey` config field to pin the TEE X25519 public key. When
+  set, the SDK compares the served key to the pin and refuses to encrypt on a mismatch,
+  which blocks a compromised backend from substituting its own key. When unset, behavior
+  is unchanged and the served key is trusted as before.
+
+### Fixed
+- The TEE public-key cache is now keyed by `baseUrl`. A single shared slot returned
+  whichever backend was queried first, so a request to a different `baseUrl` could be
+  encrypted to the wrong TEE key.
+- BRAID requests now forward `systemPrompt`, `useRAG`, `ragCollection`, and
+  `useLiveSearch` to the `/agent` endpoint. They were dropped before.
+- The encrypted-response path guards a malformed 200 body. A missing or non-string
+  `encryptedResponse` now surfaces as a structured `SolRouter API error` instead of a
+  raw parser crash out of a paid call.
 
 ### Changed
 - Default API base is now `https://api.solrouter.com` (was the raw Render origin).
