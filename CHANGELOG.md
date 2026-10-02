@@ -7,8 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Security bug-hunt fixes. These are not yet released. The version bump is the owner's
-decision, so no version number is assigned here.
+## [1.2.0] - 2026-09-27
+
+The npm 1.2.0 tarball was built from `585730e`, so it includes the security fixes
+below. An earlier version of this file listed them as unreleased.
 
 ### Security
 - BRAID no longer sends your prompt in plaintext when encryption is on. The BRAID path
@@ -37,7 +39,6 @@ decision, so no version number is assigned here.
   `Retry-After`. Paid requests are never replayed automatically.
 - **Requires Node 20 or later.** Node 18 (end-of-life) cannot load the Arcium dependency
   tree: `rpc-websockets` `require()`s the ESM-only `uuid`.
-### Changed
 - Corrected the API-key generation URL in the invalid-key error message to
   `solrouter.com/sdk` (previously pointed at an outdated host).
 - Corrected `gpt-oss-20b` pricing in the README to $0.10 / $0.20 per 1M tokens to match
