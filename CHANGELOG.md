@@ -9,8 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.2.0] - 2026-09-27
 
-The npm 1.2.0 tarball was built from `585730e`, so it includes the security fixes
-below. An earlier version of this file listed them as unreleased.
+The npm 1.2.0 tarball's `dist/` is byte-identical to a build of `585730e`, so it
+includes the security fixes below. An earlier version of this file listed them as
+unreleased.
 
 ### Security
 - BRAID no longer sends your prompt in plaintext when encryption is on. The BRAID path
