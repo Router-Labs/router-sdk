@@ -44,7 +44,7 @@
     "url": "https://github.com/Router-Labs/router-sdk/issues"
   },
   "dependencies": {
-    "@arcium-hq/client": "^0.10.4"
+    "@arcium-hq/client": "^0.15.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
